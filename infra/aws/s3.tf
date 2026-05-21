@@ -1,3 +1,3 @@
-resource "aws_s3_bucket" "frontend" {
-  bucket = "my-serverless-frontend-bucket"
+resource "aws_s3_bucket" "frontend-academia" {
+  bucket = "my-serverless-frontend-academia-bucket2"
 }
