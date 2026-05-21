@@ -1,7 +1,7 @@
 resource "aws_security_group" "lambda_sg" {
   name        = "lambda-sg"
   description = "Allow Lambda access to VPC resources"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = aws_vpc.academia.id
 
   # Add rules as needed
   egress {
