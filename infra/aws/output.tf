@@ -1,6 +1,6 @@
 output "frontend_bucket_url" {
   description = "URL of the S3 bucket for the frontend"
-  value       = "https://${aws_s3_bucket.frontend.bucket}.s3.amazonaws.com/index.html"
+  value       = "https://${aws_s3_bucket.my_bucket.bucket}.s3.amazonaws.com/index.html"
 }
 
 output "lambda_function_name" {
@@ -18,22 +18,24 @@ output "dynamodb_table_name" {
   value       = aws_dynamodb_table.app_data.name
 }
 
-output "vpc_id" {
-  description = "The ID of the VPC"
-  value       = aws_vpc.main.id
-}
+# Descomenta estos outputs solo si tienes los recursos declarados en tus archivos .tf
 
-output "subnet_id" {
-  description = "The ID of the private subnet"
-  value       = aws_subnet.private.id
-}
+# output "vpc_id" {
+#   description = "The ID of the VPC"
+#   value       = aws_vpc.main.id
+# }
 
-output "waf_acl_arn" {
-  description = "ARN of the WAF Web ACL"
-  value       = aws_wafv2_web_acl.api_waf.arn
-}
+# output "subnet_id" {
+#   description = "The ID of the private subnet"
+#   value       = aws_subnet.private.id
+# }
 
-output "secretsmanager_secret_arn" {
-  description = "ARN of the Lambda secret in Secrets Manager"
-  value       = aws_secretsmanager_secret.lambda_secret.arn
-}
+# output "waf_acl_arn" {
+#   description = "ARN of the WAF Web ACL"
+#   value       = aws_wafv2_web_acl.api_waf.arn
+# }
+
+# output "secretsmanager_secret_arn" {
+#   description = "ARN of the Lambda secret in Secrets Manager"
+#   value       = aws_secretsmanager_secret.lambda_secret.arn
+# }
