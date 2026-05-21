@@ -1,0 +1,132 @@
+name: Deploy to AWS and GCP
+
+on:
+  push:
+    branches: [ main ]  # Run workflow on push to main branch
+
+env:
+  AWS_REGION: us-west-2    # AWS region (Oregon)
+  GCP_REGION: us-central1  # GCP region (Iowa)
+
+jobs:
+  deploy-aws:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest  # GitHub-hosted runner
+
+    steps:
+      # Checkout the repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Configure AWS credentials using GitHub secrets
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Set up Terraform CLI
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # Initialize Terraform in the AWS infra directory
+      - name: Terraform Init (AWS)
+        working-directory: infra/aws
+        run: terraform init
+
+      # Apply Terraform to provision AWS infrastructure
+      - name: Terraform Apply (AWS)
+        working-directory: infra/aws
+        run: terraform apply -auto-approve
+
+      # Install dependencies and run Lambda unit tests
+      - name: Install Lambda dependencies and run tests
+        working-directory: lambda
+        run: |
+          npm install
+          npm test
+
+      # Zip Lambda function code
+      - name: Zip Lambda function
+        run: |
+          cd lambda
+          zip -r ../lambda.zip .
+          cd ..
+
+      # Update Lambda code with the new zip
+      - name: Update Lambda code
+        run: |
+          aws lambda update-function-code \
+            --function-name $(terraform -chdir=infra/aws output -raw lambda_function_name) \
+            --zip-file fileb://lambda.zip
+
+      # Upload frontend files to S3 bucket (bucket name from Terraform output)
+      - name: Upload frontend to S3
+        run: |
+          aws s3 sync frontend/ s3://$(terraform -chdir=infra/aws output -raw frontend_bucket_name) --delete
+
+  deploy-gcp:
+    name: Deploy to GCP
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Set up Google Cloud credentials (service account key as GitHub secret)
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
+
+      # Set up Terraform CLI
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # Initialize Terraform in the GCP infra directory
+      - name: Terraform Init (GCP)
+        working-directory: infra/gcp
+        run: terraform init
+
+      # Apply Terraform to provision GCP infrastructure
+      - name: Terraform Apply (GCP)
+        working-directory: infra/gcp
+        run: terraform apply -auto-approve
+
+      # Install dependencies and run backend unit tests
+      - name: Install backend dependencies and run tests
+        working-directory: lambda
+        run: |
+          npm install
+          npm test
+
+      # Zip Cloud Function code
+      - name: Zip Cloud Function
+        run: |
+          cd lambda
+          zip -r ../function-source.zip .
+          cd ..
+
+      # Upload frontend files to GCS bucket (bucket name from Terraform output)
+      - name: Upload frontend to GCS
+        run: |
+          BUCKET=$(terraform -chdir=infra/gcp output -raw frontend_bucket_name)
+          gsutil -m rsync -r frontend gs://$BUCKET
+
+      # Deploy Cloud Function using gcloud CLI
+      - name: Deploy Cloud Function
+        run: |
+          FUNCTION_NAME=$(terraform -chdir=infra/gcp output -raw cloud_function_name)
+          BUCKET=$(terraform -chdir=infra/gcp output -raw function_source_bucket)
+          gsutil cp function-source.zip gs://$BUCKET/
+          gcloud functions deploy $FUNCTION_NAME \
+            --region ${{ env.GCP_REGION }} \
+            --runtime nodejs18 \
+            --trigger-http \
+            --source gs://$BUCKET/function-source.zip \
+            --entry-point sayHi \
+            --allow-unauthenticated
